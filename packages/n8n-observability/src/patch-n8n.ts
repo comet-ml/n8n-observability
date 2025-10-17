@@ -1,12 +1,14 @@
 import { createRequire } from "module";
 import fs from "fs";
 import path from "path";
-import { getLangWatchTracer } from "langwatch";
-import { SemConvAttributes, SpanType, spanTypes } from "langwatch/observability";
 import {
+  trace,
+  context,
   AttributeValue,
   SpanStatusCode,
   type Exception,
+  type Span,
+  type Attributes,
 } from "@opentelemetry/api";
 import { flatten } from "flat";
 import type { IExecuteData, INodeExecutionData } from "n8n-workflow";
@@ -244,7 +246,7 @@ export async function applyPatches(): Promise<void> {
             if (fs.existsSync(pnpmPath)) {
               try {
                 const pnpmDirs = fs.readdirSync(pnpmPath);
-                const n8nCoreDir = pnpmDirs.find((dir) =>
+                const n8nCoreDir = pnpmDirs.find((dir: string) =>
                   dir.includes("n8n-core@")
                 );
                 if (n8nCoreDir) {
@@ -371,12 +373,12 @@ function patchWorkflowExecute(core: unknown): boolean {
     typeof (WorkflowExecute as { prototype?: unknown }).prototype !== "object"
   ) {
     debug(
-      "[@langwatch/n8n-observability] WorkflowExecute missing in this module"
+      "[n8n-observability] WorkflowExecute missing in this module"
     );
     return false;
   }
 
-  const tracer = getLangWatchTracer("langwatch.n8n");
+  const tracer = trace.getTracer("n8n-observability", "1.0.0");
   const proto = (WorkflowExecute as { prototype: WorkflowExecutePatchable })
     .prototype;
 
@@ -393,22 +395,22 @@ function patchWorkflowExecute(core: unknown): boolean {
         `[PATCH] ${name} called for workflow: ${workflow?.id || "unknown"}`
       );
 
-      return tracer.withActiveSpan(
+      return tracer.startActiveSpan(
         `${workflow?.name ?? "Unnamed workflow"}`,
         {
           attributes: {
             "n8n.workflow.id": workflow?.id ?? "",
             "n8n.workflow.name": workflow?.name ?? "",
-            "langwatch.span.type": "workflow" satisfies SpanType,
+            "n8n.span.type": "workflow",
           },
         },
-        async (span) => {
+        async (span: Span) => {
           debug(`[PATCH] Created workflow span: ${name || "unknown"}`);
           try {
             // Attempt to capture chat trigger from the WorkflowExecute instance
             const selfChat = extractChatMessagesFromObject(self);
             if (Array.isArray(selfChat) && selfChat.length > 0) {
-              span.setInput("chat_messages", selfChat);
+              span.setAttribute("n8n.workflow.input.chat_messages", JSON.stringify(selfChat));
             }
 
             const res: unknown = await current.apply(this, args);
@@ -463,7 +465,7 @@ function patchWorkflowExecute(core: unknown): boolean {
       }
 
       const workflowMeta = workflowArg ?? {};
-      const attributes: SemConvAttributes = {
+      const attributes: Attributes = {
         "n8n.workflow.id": workflowMeta.id ?? "unknown",
       };
 
@@ -474,10 +476,10 @@ function patchWorkflowExecute(core: unknown): boolean {
         attributes[`n8n.node.${key}`] = toAttrValue(value);
       }
 
-      // LangWatch + OpenTelemetry GenAI semantic attributes (pre-execution)
+      // OpenTelemetry GenAI semantic attributes (pre-execution)
       const spanType = classifySpanType(nodeType, nodeName);
-      if (spanType) attributes["langwatch.span.type"] = spanType;
-      if (spanType === "llm") attributes["langwatch.streaming"] = false;
+      if (spanType) attributes["n8n.span.type"] = spanType;
+      if (spanType === "llm") attributes["n8n.streaming"] = false;
 
       const preModel = findModelInInputs(executionData);
       if (preModel?.system) attributes["gen_ai.system"] = preModel.system;
@@ -487,7 +489,7 @@ function patchWorkflowExecute(core: unknown): boolean {
       return tracer.startActiveSpan(
         spanName,
         { attributes },
-        async (span) => {
+        async (span: Span) => {
           try {
             const result: unknown = await current.apply(this, args);
 
@@ -503,7 +505,7 @@ function patchWorkflowExecute(core: unknown): boolean {
                   const assistantText = extractAssistantTextFromOutRaw(outRaw as Array<INodeExecutionData | undefined>);
                   if (assistantText && typeof assistantText === "string") {
                     const chat = [{ role: "assistant", content: assistantText }];
-                    span.setOutput("chat_messages", chat);
+                    span.setAttribute("n8n.node.output.chat_messages", JSON.stringify(chat));
                     chatOutputSet = true;
                   }
                 }
@@ -513,7 +515,7 @@ function patchWorkflowExecute(core: unknown): boolean {
                     outRaw as Array<INodeExecutionData | undefined>
                   ).map((item) => item?.json);
                   const s = safeJSON(finalJson);
-                  if (s) span.setOutput(s);
+                  if (s) span.setAttribute("n8n.node.output", s);
                 }
 
                 // Post-execution enrichment: map prompt/evaluation info and model from outputs
@@ -526,7 +528,7 @@ function patchWorkflowExecute(core: unknown): boolean {
                     (firstJson["compiledPrompt"] as Record<string, unknown> | undefined) ??
                     (firstJson["prompt"] as Record<string, unknown> | undefined);
 
-                  const extraAttrs: SemConvAttributes = {};
+                  const extraAttrs: Attributes = {};
 
                   if (compiled && typeof compiled === "object") {
                     Object.assign(
@@ -544,7 +546,7 @@ function patchWorkflowExecute(core: unknown): boolean {
                     const p = (node as { parameters?: Record<string, unknown> })
                       ?.parameters;
                     if (p) {
-                      extraAttrs["langwatch.evaluation.custom"] = toAttrValue({
+                      extraAttrs["n8n.evaluation.custom"] = toAttrValue({
                         datasetSlug: p["datasetSlug"],
                         evaluatorId: p["evaluatorId"],
                         name: p["name"],
@@ -568,7 +570,7 @@ function patchWorkflowExecute(core: unknown): boolean {
                 if (classifySpanType(nodeType, nodeName) === "llm") {
                   const chatMessages = extractChatMessagesFromInputs(main0 as Array<INodeExecutionData | undefined>);
                   if (Array.isArray(chatMessages) && chatMessages.length > 0) {
-                    span.setInput("chat_messages", chatMessages);
+                    span.setAttribute("n8n.node.input.chat_messages", JSON.stringify(chatMessages));
                     chatInputSet = true;
                   }
                 }
@@ -579,7 +581,7 @@ function patchWorkflowExecute(core: unknown): boolean {
                   ).map((d) => d?.json);
 
                   const si = safeJSON(inputData);
-                  if (si) span.setInput(si);
+                  if (si) span.setAttribute("n8n.node.input", si);
                 }
               }
             }
@@ -631,7 +633,7 @@ function makeLocalRequire(): NodeJS.Require {
 
 const debug = (...args: unknown[]) =>
   process.env.N8N_OTEL_DEBUG &&
-  console.log("[@langwatch/n8n-observability]", ...args);
+  console.log("[n8n-observability]", ...args);
 
 function csvSet(name: string): Set<string> {
   return new Set(
@@ -689,7 +691,7 @@ function isFunction(value: unknown): value is AnyFunction {
   return typeof value === "function";
 }
 
-// --- Helpers for LangWatch + GenAI semantic conventions ---
+// --- Helpers for GenAI semantic conventions ---
 type ChatMessage = { role: "system" | "user" | "assistant" | string; content: string };
 
 function extractAssistantTextFromOutRaw(
@@ -800,10 +802,17 @@ function classifySpanType(
   const t = (nodeType || "").toLowerCase();
   const n = (nodeName || "").toLowerCase();
 
-  if (t.includes("langwatchprompt") || n.includes("langwatch_prompt_retrieval"))
+  // Detect prompt-related nodes
+  if (t.includes("prompt") || n.includes("prompt_retrieval"))
     return "prompt";
-  if (t.includes("langwatchevaluation")) return "evaluation";
-  if (t.includes("langchain") || t.includes("openai") || n.includes("llm"))
+  
+  // Detect evaluation nodes
+  if (t.includes("evaluation")) 
+    return "evaluation";
+  
+  // Detect LLM nodes (LangChain, OpenAI, etc.)
+  if (t.includes("langchain") || t.includes("openai") || t.includes("anthropic") || 
+      t.includes("cohere") || t.includes("huggingface") || n.includes("llm"))
     return "llm";
 
   return void 0;
@@ -838,21 +847,22 @@ function findModelInInputs(
 
 function extractPromptAttributesFromCompiled(
   compiledOrPrompt: Record<string, unknown>
-): SemConvAttributes {
-  const out: SemConvAttributes = {};
+): Attributes {
+  const out: Attributes = {};
   const id = compiledOrPrompt?.["id"];
   const handle = compiledOrPrompt?.["handle"];
   const version = compiledOrPrompt?.["version"];
   const versionId = compiledOrPrompt?.["versionId"];
 
-  if (typeof id === "string") out["langwatch.prompt.id"] = id;
-  if (typeof handle === "string") out["langwatch.prompt.handle"] = handle;
+  if (typeof id === "string") out["n8n.prompt.id"] = id;
+  if (typeof handle === "string") out["n8n.prompt.handle"] = handle;
 
-  if (typeof version === "number") out["langwatch.prompt.version.number"] = version;
+  if (typeof version === "number") out["n8n.prompt.version.number"] = version;
   else if (typeof version === "string" && !Number.isNaN(Number(version)))
-    out["langwatch.prompt.version.number"] = Number(version);
+    out["n8n.prompt.version.number"] = Number(version);
 
-  if (typeof versionId === "string") out["langwatch.prompt.version.id"] = versionId;
+  if (typeof versionId === "string") out["n8n.prompt.version.id"] = versionId;
 
   return out;
 }
+  
