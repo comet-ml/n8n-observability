@@ -7,6 +7,7 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
+import { LangChainInstrumentation } from '@arizeai/openinference-instrumentation-langchain';
 
 export interface ObservabilityOptions {
   serviceName?: string;
@@ -246,6 +247,43 @@ export function setupObservability(options: ObservabilityOptions = {}): void {
   // Start the SDK
   sdkInstance.start();
 
+  // Manually instrument LangChain using OpenInference approach
+  // This must be done after SDK starts and can work even if modules are already loaded
+  try {
+    const lcInstrumentation = new LangChainInstrumentation();
+    
+    // Try to require the LangChain callbacks manager
+    // We use a try-catch since this is an optional dependency
+    try {
+      if (options.debug?.consoleLogging) {
+        console.log('[otel-setup] Attempting to instrument LangChain...');
+      }
+      
+      const CallbackManagerModule = require('@langchain/core/callbacks/manager');
+      lcInstrumentation.manuallyInstrument(CallbackManagerModule);
+      
+      if (options.debug?.consoleLogging) {
+        // Show where the module was loaded from
+        try {
+          const resolved = require.resolve('@langchain/core/callbacks/manager');
+          console.log('[otel-setup] LangChain instrumented successfully from:', resolved);
+        } catch {
+          console.log('[otel-setup] LangChain manually instrumented successfully');
+        }
+      }
+    } catch (requireErr) {
+      // LangChain not installed or not available - this is fine
+      if (options.debug?.consoleLogging) {
+        console.log('[otel-setup] LangChain instrumentation skipped (module not found)');
+        console.log('[otel-setup] Reason:', (requireErr as Error)?.message || requireErr);
+      }
+    }
+  } catch (err) {
+    if (options.debug?.consoleLogging) {
+      console.warn('[otel-setup] Failed to set up LangChain instrumentation:', (err as Error)?.message);
+    }
+  }
+
   // Handle graceful shutdown
   process.on('SIGTERM', () => {
     sdkInstance?.shutdown()
@@ -262,6 +300,7 @@ export function setupObservability(options: ObservabilityOptions = {}): void {
   } else {
     features.push('console output');
   }
+  features.push('langchain (manual)');
   if (options.enableAutoInstrumentation) features.push('auto-instrumentation');
   if (options.enableMetrics) features.push('metrics');
   if (!options.enableAutoInstrumentation && !options.enableMetrics) features.push('n8n spans only');

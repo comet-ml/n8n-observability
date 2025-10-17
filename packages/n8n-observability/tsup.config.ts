@@ -3,7 +3,10 @@ import { defineConfig } from 'tsup';
 export default defineConfig([
   // Backend hooks file (CommonJS for EXTERNAL_HOOK_FILES compatibility)
   {
-    entry: { index: 'src/index.ts', hooks: 'src/hooks.ts' },
+    entry: { 
+      index: 'src/index.ts', 
+      hooks: 'src/hooks.ts'
+    },
     format: ['cjs'],
     platform: 'node',
     target: 'node20',

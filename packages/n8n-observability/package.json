@@ -1,7 +1,7 @@
 {
   "name": "n8n-observability",
   "version": "1.0.0",
-  "description": "n8n OpenTelemetry instrumentation (TypeScript, modern, preloadable).",
+  "description": "n8n OpenTelemetry instrumentation with automatic LangChain tracing.",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,6 +24,7 @@
     "README.md"
   ],
   "dependencies": {
+    "@arizeai/openinference-instrumentation-langchain": "^3.4.3",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/auto-instrumentations-node": "^0.52.1",
     "@opentelemetry/context-async-hooks": "^1.30.0",
@@ -51,7 +52,7 @@
     "@types/node": "^22.0.0",
     "n8n-core": "^1.112.1",
     "n8n-workflow": "^1.110.0",
-    "typescript": "^5.0.0",
-    "tsup": "^8.0.0"
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
   }
 }

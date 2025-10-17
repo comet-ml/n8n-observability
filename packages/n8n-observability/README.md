@@ -10,6 +10,7 @@ It automatically traces workflow executions and individual node operations using
 - 🎯 **Zero-code setup** via n8n's hook system
 - 🔌 **OTLP compatible** - works with any OpenTelemetry-compatible backend (Opik, Jaeger, Grafana Tempo, etc.)
 - ⚙️ **Configurable** via environment variables
+- 🦜 **LangChain instrumentation** - automatic tracing of LangChain operations using [Arize AI's OpenInference](https://arize-ai.github.io/openinference/js/packages/openinference-instrumentation-langchain/)
 
 ---
 
@@ -113,8 +114,8 @@ pnpm build
 ```
 
 Build artifacts include:
-- `dist/hooks.cjs` → CommonJS entry for `EXTERNAL_HOOK_FILES`
-- `dist/index.js` → ESM programmatic API
+- `dist/hooks.cjs` → CommonJS entry for `EXTERNAL_HOOK_FILES` (recommended)
+- `dist/index.cjs` → CommonJS programmatic API
 
 ### TypeScript
 
@@ -190,6 +191,29 @@ Consider using OpenTelemetry's attribute processors or filtering at the collecto
 - Verify the exporter configuration is correct
 - Look for the startup log: `[n8n-observability] observability ready and patches applied`
 - Enable debug logging to see diagnostic information
+
+### No LangChain spans visible
+
+If you're not seeing LangChain-specific spans (chains, agents, tools):
+
+1. **Enable debug logging** to see instrumentation status:
+   ```bash
+   export N8N_OTEL_DEBUG=1
+   ```
+   
+2. **Check for success message**: You should see:
+   ```
+   [otel-setup] LangChain instrumented successfully from: /path/to/@langchain/core/callbacks/manager.cjs
+   ```
+
+3. **If you see "module not found"**: Your n8n installation doesn't have LangChain nodes installed. Install them:
+   ```bash
+   npm install @n8n/n8n-nodes-langchain
+   ```
+
+4. **Verify your workflow actually uses LangChain nodes**: Add a ChatOpenAI, Agent, or Chain node to your workflow
+
+**How it works**: LangChain instrumentation uses [Arize AI's OpenInference](https://arize-ai.github.io/openinference/js/packages/openinference-instrumentation-langchain/) manual instrumentation approach. No special setup required - it automatically instruments LangChain when n8n starts with the hooks file.
 
 ### Warning: "could not deserialize response"
 If you see this warning:
