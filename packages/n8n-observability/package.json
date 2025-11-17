@@ -1,7 +1,7 @@
 {
-  "name": "@langwatch/n8n-observability",
+  "name": "n8n-observability",
   "version": "1.0.0",
-  "description": "LangWatch + n8n OpenTelemetry bootstrap (TypeScript, modern, preloadable).",
+  "description": "n8n OpenTelemetry instrumentation with automatic LangChain tracing.",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,25 +24,35 @@
     "README.md"
   ],
   "dependencies": {
+    "@arizeai/openinference-instrumentation-langchain": "^3.4.3",
     "@opentelemetry/api": "^1.9.0",
-    "flat": "^6.0.1",
-    "langwatch": "^0.7.1",
-    "@opentelemetry/context-async-hooks": "^2.1.0",
-    "@opentelemetry/sdk-node": "^0.205.0"
+    "@opentelemetry/auto-instrumentations-node": "^0.52.1",
+    "@opentelemetry/context-async-hooks": "^1.30.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.56.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.56.0",
+    "@opentelemetry/resources": "^1.30.0",
+    "@opentelemetry/sdk-metrics": "^1.30.0",
+    "@opentelemetry/sdk-node": "^0.56.0",
+    "@opentelemetry/sdk-trace-base": "^1.30.0",
+    "@opentelemetry/semantic-conventions": "^1.30.0",
+    "flat": "^6.0.1"
   },
   "keywords": [
     "n8n",
     "opentelemetry",
-    "langwatch",
     "observability",
-    "otel"
+    "otel",
+    "instrumentation"
   ],
   "repository": {
     "type": "git",
     "url": "https://github.com/langwatch/n8n-observability"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "n8n-core": "^1.112.1",
-    "n8n-workflow": "^1.110.0"
+    "n8n-workflow": "^1.110.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
   }
 }

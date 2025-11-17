@@ -1,10 +1,10 @@
-import { setupObservability } from "langwatch/observability/node";
+import { setupObservability } from "./otel-setup.js";
 import { applyPatches } from "./patch-n8n.js";
 
 /**
  * CommonJS backend hooks file for n8n (used via EXTERNAL_HOOK_FILES)
  *
- * This initializes LangWatch observability and applies the n8n patches
+ * This initializes OpenTelemetry observability and applies the n8n patches
  * during the `n8n.ready` lifecycle hook so context is set up before any
  * workflow executes.
  */
@@ -17,16 +17,18 @@ const hooks = {
           setupObservability({
             serviceName,
             debug: process.env.N8N_OTEL_DEBUG ? { consoleLogging: true, logLevel: "info" } : undefined,
+            enableAutoInstrumentation: process.env.N8N_OTEL_AUTO_INSTRUMENT === "true",
+            enableMetrics: process.env.N8N_OTEL_METRICS === "true",
           });
         } catch (err) {
-          console.warn("[@langwatch/n8n-observability] setupObservability failed:", (err as Error)?.message || err);
+          console.warn("[n8n-observability] setupObservability failed:", (err as Error)?.message || err);
         }
 
         try {
           await applyPatches();
-          console.log("[@langwatch/n8n-observability] observability ready and patches applied");
+          console.log("[n8n-observability] observability ready and patches applied");
         } catch (err) {
-          console.warn("[@langwatch/n8n-observability] patching failed:", (err as Error)?.message || err);
+          console.warn("[n8n-observability] patching failed:", (err as Error)?.message || err);
         }
       },
     ],
@@ -39,6 +41,8 @@ try {
   setupObservability({
     serviceName,
     debug: process.env.N8N_OTEL_DEBUG ? { consoleLogging: true, logLevel: "info" } : undefined,
+    enableAutoInstrumentation: process.env.N8N_OTEL_AUTO_INSTRUMENT === "true",
+    enableMetrics: process.env.N8N_OTEL_METRICS === "true",
   });
   // Fire-and-forget; patch attempts multiple resolution strategies
   void applyPatches();
