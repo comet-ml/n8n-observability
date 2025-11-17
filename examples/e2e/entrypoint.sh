@@ -4,21 +4,40 @@ set -eu
 # Install the local tarball (and its deps) into /tmp so Node can resolve requires
 npm i --prefix /tmp /workspace/packages/n8n-observability/*.tgz
 
-# Import and execute the sample workflow
-n8n import:workflow --input /workspace/examples/e2e/workflow.json
+# Import the test workflow and capture its output to get the ID
+echo "Importing workflow..."
+IMPORT_OUTPUT=$(n8n import:workflow --input /workspace/examples/e2e/workflow.json 2>&1)
+echo "$IMPORT_OUTPUT"
+
+# List all workflows to find our specific one
+echo "Listing workflows..."
+n8n list:workflow > /tmp/workflow-list.txt || true
+cat /tmp/workflow-list.txt
+
+# Try to find the workflow by name "AI Assistant with Quality Checks"
+# Export all workflows and search for our specific workflow name
 n8n export:workflow --all --separate --output /tmp/exports
 
-# Determine a workflow ID and execute it
-ID=$(find /tmp/exports -name "*.json" -exec grep -ho "\"id\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" {} \; | head -n1 | sed -E "s/.*\"([^\"]+)\"/\1/")
+# Find the workflow file that contains our workflow name
+WORKFLOW_FILE=$(grep -l "AI Assistant with Quality Checks" /tmp/exports/*.json 2>/dev/null | head -n1 || true)
+if [ -z "$WORKFLOW_FILE" ]; then
+  WORKFLOW_FILE=""
+fi
+
+if [ -n "$WORKFLOW_FILE" ]; then
+  # Extract the ID from the specific workflow file
+  ID=$(grep -o "\"id\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$WORKFLOW_FILE" | head -n1 | sed -E "s/.*\"([^\"]+)\"/\1/")
+  echo "Found workflow ID from file: $ID"
+else
+  echo "Could not find workflow by name, trying to get the most recently imported workflow..."
+  # Fall back to the first workflow ID found
+  ID=$(find /tmp/exports -name "*.json" -exec grep -ho "\"id\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" {} \; | head -n1 | sed -E "s/.*\"([^\"]+)\"/\1/")
+fi
+
 if [ -z "$ID" ]; then
-  echo "Could not determine workflow ID, trying to list workflows..."
-  n8n list:workflow
-  echo "Trying to execute with ID 1..."
-  n8n execute --id 1 || echo "Execution failed"
+  echo "ERROR: Could not determine workflow ID"
+  exit 1
 else
   echo "Executing workflow with ID: $ID"
   n8n execute --id "$ID"
 fi
-
-# Allow some time for spans to flush
-sleep 6

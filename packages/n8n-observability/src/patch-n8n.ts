@@ -13,6 +13,15 @@ import {
 import { flatten } from "flat";
 import type { IExecuteData, INodeExecutionData } from "n8n-workflow";
 
+// Import the flush function
+let flushObservability: (() => Promise<void>) | null = null;
+try {
+  const otelSetup = require("./otel-setup.js");
+  flushObservability = otelSetup.flushObservability;
+} catch {
+  // Flush not available
+}
+
 type AnyFunction = (...args: unknown[]) => unknown;
 
 type WorkflowMeta = { id?: string; name?: string };
@@ -435,6 +444,15 @@ function patchWorkflowExecute(core: unknown): boolean {
             throw err;
           } finally {
             span.end();
+            
+            // Explicitly flush spans after workflow completes (for CLI mode)
+            if (flushObservability) {
+              try {
+                await flushObservability();
+              } catch {
+                // Ignore flush errors
+              }
+            }
           }
         }
       );

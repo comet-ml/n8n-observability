@@ -1,28 +1,140 @@
 {
-  "name": "E2E Simple Workflow",
+  "name": "AI Assistant with Quality Checks",
   "nodes": [
     {
       "parameters": {},
-      "id": "Execute Workflow Trigger",
+      "id": "execute-workflow-trigger",
       "name": "Execute Workflow Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1,
       "position": [
-        360,
+        240,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse and validate user request\nreturn [\n  {\n    json: {\n      userQuery: \"Explain quantum computing in simple terms\",\n      context: \"Educational content for high school students\",\n      requestId: `req_${Date.now()}`,\n      timestamp: new Date().toISOString()\n    }\n  }\n];"
+      },
+      "id": "parse-request",
+      "name": "Parse Request",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        440,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://jsonplaceholder.typicode.com/posts/1",
+        "options": {}
+      },
+      "id": "fetch-context",
+      "name": "Fetch Context Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        640,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format prompt with retrieved context\nconst input = $input.first();\nconst externalData = items[0].json;\n\nreturn [\n  {\n    json: {\n      messages: [\n        {\n          role: \"system\",\n          content: `You are an educational AI assistant. Context: ${input.json.context}`\n        },\n        {\n          role: \"user\",\n          content: `${input.json.userQuery}\\n\\nAdditional context: ${JSON.stringify(externalData)}`\n        }\n      ],\n      model: \"gpt-4\",\n      temperature: 0.7,\n      max_tokens: 500,\n      requestId: input.json.requestId\n    }\n  }\n];"
+      },
+      "id": "format-prompt",
+      "name": "Format Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        840,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// OpenAI API call\nconst promptData = items[0].json;\n\nreturn [\n  {\n    json: {\n      id: `chatcmpl-${Math.random().toString(36).substr(2, 9)}`,\n      object: \"chat.completion\",\n      created: Math.floor(Date.now() / 1000),\n      model: promptData.model,\n      choices: [\n        {\n          index: 0,\n          message: {\n            role: \"assistant\",\n            content: \"Quantum computing is like having a super-powered calculator that can explore many possibilities at once. While regular computers use bits (0s and 1s), quantum computers use qubits that can be both 0 and 1 simultaneously through superposition. This allows them to solve certain complex problems much faster than traditional computers.\"\n          },\n          finish_reason: \"stop\"\n        }\n      ],\n      usage: {\n        prompt_tokens: 156,\n        completion_tokens: 87,\n        total_tokens: 243\n      },\n      requestId: promptData.requestId\n    }\n  }\n];"
+      },
+      "id": "openai-chat",
+      "name": "OpenAI Chat",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Quality evaluation guardrail\nconst completion = items[0].json;\nconst response = completion.choices[0].message.content;\n\n// Calculate quality metrics\nconst wordCount = response.split(' ').length;\nconst hasNumbers = /\\d/.test(response);\nconst sentenceCount = (response.match(/[.!?]/g) || []).length;\n\nconst metrics = {\n  clarity: 0.92,\n  accuracy: 0.88,\n  relevance: 0.95,\n  readability: 0.90,\n  wordCount,\n  sentenceCount,\n  technicalTermsUsed: hasNumbers\n};\n\nconst avgScore = (metrics.clarity + metrics.accuracy + metrics.relevance + metrics.readability) / 4;\n\nreturn [\n  {\n    json: {\n      ...completion,\n      evaluation: metrics,\n      qualityScore: avgScore,\n      passed: avgScore >= 0.8\n    }\n  }\n];"
+      },
+      "id": "evaluate-quality",
+      "name": "Quality Guardrail",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.qualityScore }}",
+              "value2": 0.8
+            }
+          ]
+        }
+      },
+      "id": "quality-gate",
+      "name": "Quality Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Approved response handler\nconst data = items[0].json;\n\nreturn [\n  {\n    json: {\n      status: \"approved\",\n      response: data.choices[0].message.content,\n      model: data.model,\n      metrics: {\n        quality: data.qualityScore,\n        tokens: data.usage.total_tokens,\n        evaluation: data.evaluation\n      },\n      requestId: data.requestId,\n      timestamp: new Date().toISOString()\n    }\n  }\n];"
+      },
+      "id": "approve-response",
+      "name": "Approve Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1640,
         300
       ]
     },
     {
       "parameters": {
-        "functionCode": "return [{ json: { hello: 'world', answer: 42 } }];"
+        "functionCode": "// Rejected response handler\nconst data = items[0].json;\n\nreturn [\n  {\n    json: {\n      status: \"rejected\",\n      reason: \"Quality score below threshold\",\n      qualityScore: data.qualityScore,\n      requestId: data.requestId,\n      timestamp: new Date().toISOString()\n    }\n  }\n];"
       },
-      "id": "Function Node",
-      "name": "Function",
+      "id": "reject-response",
+      "name": "Reject Response",
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
       "position": [
-        540,
-        300
+        1640,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Aggregate workflow results\nconst results = items.map(item => item.json);\n\nreturn [\n  {\n    json: {\n      workflowComplete: true,\n      totalRequests: results.length,\n      results,\n      completedAt: new Date().toISOString()\n    }\n  }\n];"
+      },
+      "id": "aggregate-results",
+      "name": "Return Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1840,
+        400
       ]
     }
   ],
@@ -31,7 +143,102 @@
       "main": [
         [
           {
-            "node": "Function",
+            "node": "Parse Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Request": {
+      "main": [
+        [
+          {
+            "node": "Fetch Context Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Context Data": {
+      "main": [
+        [
+          {
+            "node": "Format Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Prompt": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat": {
+      "main": [
+        [
+          {
+            "node": "Quality Guardrail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quality Guardrail": {
+      "main": [
+        [
+          {
+            "node": "Quality Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quality Gate": {
+      "main": [
+        [
+          {
+            "node": "Approve Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approve Response": {
+      "main": [
+        [
+          {
+            "node": "Return Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reject Response": {
+      "main": [
+        [
+          {
+            "node": "Return Results",
             "type": "main",
             "index": 0
           }

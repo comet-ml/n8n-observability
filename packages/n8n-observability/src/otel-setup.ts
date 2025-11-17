@@ -186,30 +186,6 @@ export function setupObservability(options: ObservabilityOptions = {}): void {
             timeoutMillis: 10000,
           });
           
-          // Add debug logging and error handling
-          if (options.debug?.consoleLogging) {
-            const originalExport = exporter.export.bind(exporter);
-            exporter.export = (spans: any, resultCallback: any) => {
-              console.log(`[otel-setup] Exporting ${spans.length} span(s) to ${traceUrl}`);
-              originalExport(spans, (result: any) => {
-                if (result.error) {
-                  // Filter out benign JSON parse errors from backends that return empty 200 responses
-                  const errorMsg = result.error?.message || result.error?.toString() || '';
-                  const isBenignJsonError = errorMsg.includes('JSON') && errorMsg.includes('Unexpected end');
-                  
-                  if (!isBenignJsonError) {
-                    console.error(`[otel-setup] Failed to export spans:`, result.error);
-                  } else {
-                    console.log(`[otel-setup] Successfully exported ${spans.length} span(s) (backend returned empty response)`);
-                  }
-                } else {
-                  console.log(`[otel-setup] Successfully exported ${spans.length} span(s)`);
-                }
-                resultCallback(result);
-              });
-            };
-          }
-          
           return exporter;
         })()
       : new ConsoleSpanExporter(),
@@ -315,6 +291,15 @@ export function setupObservability(options: ObservabilityOptions = {}): void {
     if (options.enableMetrics) {
       console.log(`[otel-setup] Metrics endpoint: ${getMetricsUrl()}`);
     }
+  }
+}
+
+/**
+ * Force flush all pending telemetry
+ */
+export async function flushObservability(): Promise<void> {
+  if (sdkInstance) {
+    await sdkInstance.shutdown();
   }
 }
 
