@@ -2,11 +2,11 @@ services:
   n8n-e2e:
     image: n8nio/n8n:latest
     environment:
-      LANGWATCH_API_KEY: "test_fake_key_123"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "https://www.comet.com/opik/api/v1/private/otel"
+      OTEL_EXPORTER_OTLP_HEADERS: "Authorization=FDpOg69z2b1ttdyvwkAPndWwe,Comet-Workspace=default"
       N8N_OTEL_SERVICE_NAME: "n8n-e2e"
-      EXTERNAL_HOOK_FILES: "/tmp/node_modules/@langwatch/n8n-observability/dist/hooks.cjs"
+      EXTERNAL_HOOK_FILES: "/tmp/node_modules/n8n-observability/dist/hooks.cjs"
       N8N_OTEL_DEBUG: "1"
-      LW_DEBUG: "1"
     entrypoint: ["/bin/sh","-lc","sh /workspace/examples/e2e/entrypoint.sh"]
     volumes:
       - ../..:/workspace:ro

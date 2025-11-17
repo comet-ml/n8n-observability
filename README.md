@@ -1,9 +1,12 @@
 # n8n-observability
 
+> [!IMPORTANT]
+> This package only works with **self-hosted n8n** installations. It is not compatible with n8n Cloud.
+
 OpenTelemetry instrumentation for [n8n](https://n8n.io) workflows.  
 Automatically traces workflow executions and node operations using the standard OpenTelemetry SDK.
 
-![Observability Setup](./assets/observability.webp)
+![Observability Setup](./assets/opik_dashboard.png)
 
 ## Features
 - 🔍 **Automatic tracing** of workflow executions and individual node operations
@@ -19,8 +22,10 @@ Automatically traces workflow executions and node operations using the standard 
 ## Quick Start
 
 ### Prerequisites
-- An OpenTelemetry-compatible backend (Opik, Jaeger, Grafana Tempo, Honeycomb, etc.)
-- Or use console exporters for development (default)
+- An OpenTelemetry-compatible backend
+  - **[Opik](https://www.comet.com/opik)** (recommended - examples below use Opik)
+  - Or any other OTEL provider: Jaeger, Grafana Tempo, Honeycomb, Datadog, etc.
+- Or use console exporters for development
 
 ---
 
@@ -39,8 +44,17 @@ USER node
 
 ```bash
 docker build -t my-n8n-otel .
+
+# For Opik Cloud
 docker run -p 5678:5678 \
-  -e OTEL_EXPORTER_OTLP_ENDPOINT=http://your-otel-collector:4318 \
+  -e OTEL_EXPORTER_OTLP_ENDPOINT=https://www.comet.com/opik/api/v1/private/otel \
+  -e OTEL_EXPORTER_OTLP_HEADERS='Authorization=<your-api-key>,Comet-Workspace=default' \
+  -e N8N_OTEL_SERVICE_NAME=my-n8n \
+  my-n8n-otel
+
+# Or for local Opik
+docker run -p 5678:5678 \
+  -e OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5173/api/v1/private/otel \
   -e N8N_OTEL_SERVICE_NAME=my-n8n \
   my-n8n-otel
 ```
@@ -54,7 +68,10 @@ services:
   n8n:
     image: n8nio/n8n:latest
     environment:
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      # For Opik Cloud
+      - OTEL_EXPORTER_OTLP_ENDPOINT=https://www.comet.com/opik/api/v1/private/otel
+      - OTEL_EXPORTER_OTLP_HEADERS=Authorization=<your-api-key>,Comet-Workspace=default
+      # Or for local Opik: http://localhost:5173/api/v1/private/otel
       - N8N_OTEL_SERVICE_NAME=my-n8n
       - EXTERNAL_HOOK_FILES=/data/otel-hooks.cjs
     volumes:
@@ -63,17 +80,12 @@ services:
     ports:
       - "5678:5678"
       
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    ports:
-      - "16686:16686"  # Jaeger UI
-      - "4318:4318"    # OTLP HTTP
-      
 volumes:
   n8n_data:
 ```
 
-> Ensure `n8n-observability` is installed on the host (e.g., `pnpm i` in your repo) so the mounted `dist/hooks.cjs` exists.
+> **Note:** Ensure `n8n-observability` is installed on the host (e.g., `pnpm i` in your repo) so the mounted `dist/hooks.cjs` exists.  
+> This configuration uses Opik as the backend. Works with **any OTEL-compatible provider** - just update the endpoint and headers accordingly.
 
 ---
 
@@ -82,7 +94,13 @@ volumes:
 # install globally OR locally
 npm install -g n8n-observability
 
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+# For Opik Cloud
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://www.comet.com/opik/api/v1/private/otel
+export OTEL_EXPORTER_OTLP_HEADERS='Authorization=<your-api-key>,Comet-Workspace=default'
+
+# Or for local Opik
+# export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5173/api/v1/private/otel
+
 export N8N_OTEL_SERVICE_NAME=my-n8n
 export EXTERNAL_HOOK_FILES=$(node -e "console.log(require.resolve('n8n-observability/hooks'))")
 
@@ -112,7 +130,8 @@ await setupN8nObservability({
 | --------------------------- | -------------------------------------- | ------- |
 | `OTEL_SERVICE_NAME`         | Service name for telemetry             | `n8n`   |
 | `N8N_OTEL_SERVICE_NAME`     | Alternative service name (takes precedence) | —   |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP exporter endpoint (if using OTLP) | —     |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP exporter endpoint              | —     |
+| `OTEL_EXPORTER_OTLP_HEADERS` | OTLP headers (e.g., auth tokens)      | —     |
 | `N8N_OTEL_NODE_INCLUDE`     | Only trace listed nodes (name/type)    | —       |
 | `N8N_OTEL_NODE_EXCLUDE`     | Exclude listed nodes (name/type)       | —       |
 | `N8N_OTEL_CAPTURE_INPUT`    | Capture node I/O (`false` disables)    | `true`  |
@@ -121,6 +140,8 @@ await setupN8nObservability({
 | `N8N_OTEL_METRICS`          | Enable metrics (CPU, memory, etc.)     | `false` |
 | `N8N_OTEL_DEBUG`            | Hook patching diagnostics              | `false` |
 | `EXTERNAL_HOOK_FILES`       | Path to `dist/hooks.cjs` (hook modes)  | —       |
+
+> **Works with all OTEL providers:** The examples above use Opik, but you can use any OpenTelemetry-compatible backend (Jaeger, Grafana Tempo, Honeycomb, Datadog, New Relic, etc.) by updating the `OTEL_EXPORTER_OTLP_ENDPOINT` and authentication headers accordingly.
 
 ### Output Control
 
@@ -152,34 +173,36 @@ export N8N_OTEL_CAPTURE_INPUT=false
 
 ## Configuring Exporters
 
-By default, this package uses **console exporters** for development. To send telemetry to a real backend:
+By default, this package uses **console exporters** for development. To send telemetry to a real backend, use environment variables:
 
-1. **Option 1: Modify the source** - Edit `packages/n8n-observability/src/otel-setup.ts` to use OTLP exporters:
-
-```typescript
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
-
-// Replace ConsoleSpanExporter with:
-traceExporter: new OTLPTraceExporter({
-  url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318/v1/traces',
-}),
-
-// Replace ConsoleMetricExporter with:
-metricReader: new PeriodicExportingMetricReader({
-  exporter: new OTLPMetricExporter({
-    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318/v1/metrics',
-  }),
-}),
-```
-
-2. **Option 2: Use environment variables** - OpenTelemetry SDK respects standard environment variables:
+### Opik (Recommended)
 
 ```bash
-export OTEL_TRACES_EXPORTER=otlp
-export OTEL_METRICS_EXPORTER=otlp
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://your-collector:4318
+# Opik Cloud
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://www.comet.com/opik/api/v1/private/otel
+export OTEL_EXPORTER_OTLP_HEADERS='Authorization=<your-api-key>,Comet-Workspace=default'
+
+# Or local Opik
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5173/api/v1/private/otel
 ```
+
+### Other OTEL Providers
+
+Works with any OpenTelemetry-compatible backend. Just configure the endpoint:
+
+```bash
+# Generic OTLP endpoint
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://your-collector:4318
+
+# With authentication (if required)
+export OTEL_EXPORTER_OTLP_HEADERS='Authorization=Bearer <token>'
+```
+
+**Examples for specific providers:**
+- **Jaeger**: `http://jaeger:4318`
+- **Grafana Tempo**: `http://tempo:4318`
+- **Honeycomb**: `https://api.honeycomb.io` with header `x-honeycomb-team=<api-key>`
+- **Datadog**: Configure via Datadog agent endpoint
 
 ---
 
@@ -218,22 +241,50 @@ Expected startup log:
 
 ## Examples
 
-### With Jaeger
-See [`examples/docker-compose/`](./examples/docker-compose/) for a complete setup.
+### Complete Docker Setup
+See [`examples/docker-compose/`](./examples/docker-compose/) for a complete working example with Comet ML (Opik).
 
-### With Grafana Tempo
+### Using Different Backends
+
+The package works with **any OTEL-compatible backend**. Here are examples:
+
+**Opik (Cloud):**
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://www.comet.com/opik/api/v1/private/otel
+export OTEL_EXPORTER_OTLP_HEADERS='Authorization=<your-api-key>,Comet-Workspace=default'
+```
+
+**Opik (Local):**
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5173/api/v1/private/otel
+```
+
+**Grafana Tempo:**
 ```yaml
 services:
   n8n:
-    # ... n8n config
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318
       
   tempo:
     image: grafana/tempo:latest
     ports:
-      - "3200:3200"   # Tempo
-      - "4318:4318"   # OTLP HTTP
+      - "3200:3200"
+      - "4318:4318"
+```
+
+**Jaeger:**
+```yaml
+services:
+  n8n:
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+      - "4318:4318"
 ```
 
 ---
@@ -259,16 +310,14 @@ cd examples/docker-compose
 docker-compose up
 ```
 
----
-
-## Related Projects
-
-- [OpenTelemetry JavaScript](https://github.com/open-telemetry/opentelemetry-js)
-- [n8n](https://github.com/n8n-io/n8n)
-- [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector)
-
----
 
 ## License
 
 MIT - See [LICENSE](./LICENSE) for details.
+
+---
+
+## Acknowledgments
+
+> [!NOTE]
+> This project is a fork of [LangWatch's n8n-observability](https://github.com/langwatch/n8n-observability). We're grateful for their excellent work in creating the original implementation and bringing observability to n8n workflows. Their contributions have been instrumental in making this project possible. We've extended their code to work with **all OpenTelemetry providers** (not just LangWatch), making it a universal solution for n8n observability with any OTEL-compatible backend.

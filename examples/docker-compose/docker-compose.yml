@@ -2,8 +2,13 @@ services:
   n8n:
     build: .
     environment:
-      LANGWATCH_API_KEY: "${LANGWATCH_API_KEY}"
+      # Comet ML Configuration
+      OTEL_EXPORTER_OTLP_ENDPOINT: "https://www.comet.com/opik/api/v1/private/otel"
+      OTEL_EXPORTER_OTLP_HEADERS: "Authorization=${COMET_API_KEY},Comet-Workspace=default"
       N8N_OTEL_SERVICE_NAME: "n8n"
+      # Optional: Enable additional features
+      # N8N_OTEL_METRICS: "true"
+      # N8N_OTEL_DEBUG: "1"
     volumes:
       - n8n_data:/home/node/.n8n
     ports: ["5678:5678"]
