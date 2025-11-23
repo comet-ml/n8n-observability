@@ -3,10 +3,9 @@
 > [!IMPORTANT]
 > This package only works with **self-hosted n8n** installations. It is not compatible with n8n Cloud.
 
-OpenTelemetry instrumentation for [n8n](https://n8n.io) workflows.  
-Automatically traces workflow executions and node operations using the standard OpenTelemetry SDK.
+OpenTelemetry instrumentation for [n8n](https://n8n.io) workflows. Automatically traces workflow executions and node operations using the standard OpenTelemetry SDK.
 
-![Observability Setup](./assets/opik_dashboard.png)
+![Observability Setup](https://raw.githubusercontent.com/comet-ml/n8n-observability/refs/heads/main/assets/opik_dashboard.png)
 
 ## Features
 - 🔍 **Automatic tracing** of workflow executions and individual node operations

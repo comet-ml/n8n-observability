@@ -6,6 +6,10 @@ on:
       - published
   workflow_dispatch:
 
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+
 jobs:
   publish-npm:
     if: startsWith(github.event.release.tag_name, 'n8n-observability/') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
@@ -44,5 +48,3 @@ jobs:
       - name: Publish to npm
         working-directory: packages/n8n-observability
         run: pnpm publish --provenance --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

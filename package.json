@@ -1,6 +1,6 @@
 {
-  "name": "n8n-observability-repo",
-  "private": true,
+  "name": "n8n-observability",
+  "private": false,
   "version": "1.0.0",
   "license": "MIT",
   "packageManager": "pnpm@10.17.1",
