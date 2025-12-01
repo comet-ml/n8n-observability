@@ -1,6 +1,6 @@
 {
   "name": "n8n-observability",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "n8n OpenTelemetry instrumentation. Compatible with Opik and any other OpenTelemetry-compatible backend.",
   "license": "MIT",
   "main": "dist/index.js",

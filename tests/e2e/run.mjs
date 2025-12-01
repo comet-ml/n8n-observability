@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -14,27 +13,7 @@ function sh(cmd, args, opts={}) {
 }
 
 async function main() {
-  // Build and pack a fresh tarball, then place it under packages/n8n-observability for the compose install
-  await sh('pnpm', ['-F', 'n8n-observability', 'build']);
-  const rootDir = process.cwd();
-  const pkgDir = path.resolve('packages/n8n-observability');
-  // Clean old tarballs in both locations
-  for (const f of await fs.promises.readdir(pkgDir)) {
-    if (f.endsWith('.tgz')) await fs.promises.unlink(path.join(pkgDir, f));
-  }
-  for (const f of await fs.promises.readdir(rootDir)) {
-    if (f.startsWith('n8n-observability-') && f.endsWith('.tgz')) {
-      await fs.promises.unlink(path.join(rootDir, f));
-    }
-  }
-  await sh('pnpm', ['-F', 'n8n-observability', 'pack']);
-  // Find the newly created tarball at repo root and move it to the package dir
-  const rootFiles = await fs.promises.readdir(rootDir);
-  const tarballName = rootFiles.find(f => f.startsWith('n8n-observability-') && f.endsWith('.tgz'));
-  if (!tarballName) throw new Error('Tarball not found after pack');
-  await fs.promises.rename(path.join(rootDir, tarballName), path.join(pkgDir, tarballName));
-
-  // Up once (build)
+  // Build the docker image (uses published n8n-observability package from npm)
   await sh('docker', ['compose', '-f', composeFile, 'build']);
 
   // Run the one-shot workflow container and stream logs

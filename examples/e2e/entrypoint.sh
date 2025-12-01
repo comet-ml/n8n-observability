@@ -1,12 +1,12 @@
 #!/bin/sh
 set -eu
 
-# Install the local tarball (and its deps) into /tmp so Node can resolve requires
-npm i --prefix /tmp /workspace/packages/n8n-observability/*.tgz
+# Install n8n-observability from npm into /tmp so Node can resolve requires
+npm i --prefix /tmp n8n-observability
 
 # Import the test workflow and capture its output to get the ID
 echo "Importing workflow..."
-IMPORT_OUTPUT=$(n8n import:workflow --input /workspace/examples/e2e/workflow.json 2>&1)
+IMPORT_OUTPUT=$(n8n import:workflow --input /workspace/workflow.json 2>&1)
 echo "$IMPORT_OUTPUT"
 
 # List all workflows to find our specific one
