@@ -295,15 +295,6 @@ export function setupObservability(options: ObservabilityOptions = {}): void {
 }
 
 /**
- * Force flush all pending telemetry (without shutting down)
- */
-export async function flushObservability(): Promise<void> {
-  if (sdkInstance) {
-    await sdkInstance.forceFlush();
-  }
-}
-
-/**
  * Shutdown the OpenTelemetry SDK
  */
 export async function shutdownObservability(): Promise<void> {

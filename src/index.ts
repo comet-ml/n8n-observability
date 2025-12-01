@@ -1,6 +1,6 @@
 // Main entry point for the package
 export { applyPatches } from "./patch-n8n.js";
-export { setupObservability, shutdownObservability, flushObservability } from "./otel-setup.js";
+export { setupObservability, shutdownObservability } from "./otel-setup.js";
 
 // For programmatic setup
 export async function setupN8nObservability(options?: {
