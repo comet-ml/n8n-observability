@@ -1,12 +1,13 @@
-# E2E Test Example
+# E2E Example (Published Package)
 
-This directory contains an end-to-end test setup that validates the n8n-observability package works correctly in a containerized environment.
+This example demonstrates how to use the **published npm package** `n8n-observability` with n8n in a Docker environment.
+
+> **Note for Developers**: This example uses the published package from npm. If you're developing the package and want to test local changes, use [`../../tests/e2e/`](../../tests/e2e/) instead.
 
 ## Purpose
 
 This example:
-- Builds and packages `n8n-observability` as a tarball
-- Installs it into an n8n Docker container
+- Installs `n8n-observability` from npm into an n8n Docker container
 - Imports and executes a simple test workflow
 - Validates that OpenTelemetry instrumentation is active
 - Sends traces to Comet ML (Opik)

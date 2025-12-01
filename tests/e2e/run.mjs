@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
-const composeFile = path.resolve('examples/e2e/docker-compose.yml');
+const composeFile = path.resolve('tests/e2e/docker-compose.yml');
 // When N8N_OTEL_DEBUG is enabled, we validate by console logs (docker up output)
 
 function sh(cmd, args, opts={}) {
@@ -13,7 +14,20 @@ function sh(cmd, args, opts={}) {
 }
 
 async function main() {
-  // Build the docker image (uses published n8n-observability package from npm)
+  // Build and pack the local version for testing (before publishing)
+  await sh('pnpm', ['build']);
+  const rootDir = process.cwd();
+  
+  // Clean old tarballs
+  for (const f of await fs.promises.readdir(rootDir)) {
+    if (f.startsWith('n8n-observability-') && f.endsWith('.tgz')) {
+      await fs.promises.unlink(path.join(rootDir, f));
+    }
+  }
+  
+  await sh('pnpm', ['pack']);
+
+  // Build and run docker compose
   await sh('docker', ['compose', '-f', composeFile, 'build']);
 
   // Run the one-shot workflow container and stream logs

@@ -1,4 +1,4 @@
-name: cd
+name: Build and Publish to npm
 
 on:
   release:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   publish-npm:
-    if: startsWith(github.event.release.tag_name, 'n8n-observability/') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    if: startsWith(github.event.release.tag_name, 'v') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -46,5 +46,4 @@ jobs:
         run: pnpm run build
 
       - name: Publish to npm
-        working-directory: packages/n8n-observability
         run: pnpm publish --provenance --access public --no-git-checks
