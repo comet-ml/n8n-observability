@@ -1,13 +1,20 @@
 #!/bin/sh
 set -eu
 
-# Install n8n-observability from npm into /tmp so Node can resolve requires
-npm i --prefix /tmp n8n-observability
+# Install n8n-observability from npm to node user's home
+npm i --prefix /home/node n8n-observability
 
 # Import the test workflow and capture its output to get the ID
 echo "Importing workflow..."
+set +e
 IMPORT_OUTPUT=$(n8n import:workflow --input /workspace/workflow.json 2>&1)
+IMPORT_EXIT=$?
+set -e
 echo "$IMPORT_OUTPUT"
+if [ $IMPORT_EXIT -ne 0 ]; then
+  echo "ERROR: Workflow import failed with exit code $IMPORT_EXIT"
+  exit 1
+fi
 
 # List all workflows to find our specific one
 echo "Listing workflows..."

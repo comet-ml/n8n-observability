@@ -1,5 +1,6 @@
 {
   "name": "AI Assistant with Quality Checks",
+  "versionId": "example-e2e-v1",
   "nodes": [
     {
       "parameters": {},

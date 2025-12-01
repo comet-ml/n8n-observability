@@ -139,7 +139,7 @@ The automated test (via `pnpm e2e`) validates success by checking for specific l
 ### Container exits immediately
 Check that the tarball was created successfully:
 ```bash
-ls -la packages/n8n-observability/*.tgz
+ls -la *.tgz
 ```
 
 ### No debug logs

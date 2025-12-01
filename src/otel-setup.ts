@@ -295,11 +295,11 @@ export function setupObservability(options: ObservabilityOptions = {}): void {
 }
 
 /**
- * Force flush all pending telemetry
+ * Force flush all pending telemetry (without shutting down)
  */
 export async function flushObservability(): Promise<void> {
   if (sdkInstance) {
-    await sdkInstance.shutdown();
+    await sdkInstance.forceFlush();
   }
 }
 
