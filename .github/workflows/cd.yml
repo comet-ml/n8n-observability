@@ -46,4 +46,4 @@ jobs:
         run: pnpm run build
 
       - name: Publish to npm
-        run: pnpm publish --provenance --access public --no-git-checks
+        run: npm publish --provenance --access public
