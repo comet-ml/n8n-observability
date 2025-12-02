@@ -29,6 +29,7 @@ export interface ObservabilityOptions {
 }
 
 let sdkInstance: NodeSDK | null = null;
+let isShuttingDown = false;
 
 /**
  * Setup OpenTelemetry observability with the Node.js SDK
@@ -49,15 +50,9 @@ export function setupObservability(options: ObservabilityOptions = {}): void {
   const serviceName = options.serviceName || 'n8n';
 
   // Setup diagnostic logging if debug is enabled
+  // Use DEBUG level to see all OTEL internal logs including HTTP export calls
   if (options.debug?.consoleLogging) {
-    const logLevelMap = {
-      debug: DiagLogLevel.DEBUG,
-      info: DiagLogLevel.INFO,
-      warn: DiagLogLevel.WARN,
-      error: DiagLogLevel.ERROR,
-    };
-    const logLevel = logLevelMap[options.debug.logLevel || 'info'];
-    diag.setLogger(new DiagConsoleLogger(), logLevel);
+    diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
   }
 
   // Create resource with service name
@@ -169,26 +164,19 @@ export function setupObservability(options: ObservabilityOptions = {}): void {
     throw new Error('No OTLP endpoint configured');
   };
 
+  // Create trace exporter - OTLP if endpoint is set, otherwise console
+  const traceExporter = useOTLP
+    ? new OTLPTraceExporter({
+        url: getTraceUrl(),
+        headers: tracesHeaders,
+        timeoutMillis: 10000,
+      })
+    : new ConsoleSpanExporter();
+
   // Prepare SDK configuration
   const sdkConfig: any = {
     resource,
-    // Trace exporter - OTLP if endpoint is set, otherwise console
-    traceExporter: useOTLP
-      ? (() => {
-          const traceUrl = getTraceUrl();
-          if (options.debug?.consoleLogging) {
-            console.log(`[otel-setup] Creating OTLP trace exporter with URL: ${traceUrl}`);
-          }
-          
-          const exporter = new OTLPTraceExporter({
-            url: traceUrl,
-            headers: tracesHeaders,
-            timeoutMillis: 10000,
-          });
-          
-          return exporter;
-        })()
-      : new ConsoleSpanExporter(),
+    traceExporter,
   };
 
   // Add metrics only if enabled
@@ -260,13 +248,12 @@ export function setupObservability(options: ObservabilityOptions = {}): void {
     }
   }
 
-  // Handle graceful shutdown
-  process.on('SIGTERM', () => {
-    sdkInstance?.shutdown()
-      .then(() => console.log('[otel-setup] OpenTelemetry SDK shut down successfully'))
-      .catch((error: Error) => console.error('[otel-setup] Error shutting down OpenTelemetry SDK', error))
-      .finally(() => process.exit(0));
-  });
+  // Handle SIGTERM/SIGINT for graceful shutdown in long-running processes
+  const handleSignal = (signal: string) => {
+    flushTraces().finally(() => process.exit(0));
+  };
+  process.on('SIGTERM', () => handleSignal('SIGTERM'));
+  process.on('SIGINT', () => handleSignal('SIGINT'));
 
   // Build status message
   const features: string[] = [];
@@ -295,12 +282,43 @@ export function setupObservability(options: ObservabilityOptions = {}): void {
 }
 
 /**
- * Shutdown the OpenTelemetry SDK
+ * Flush all pending traces and shutdown the SDK.
+ * Call this before process exit to ensure traces are exported.
+ * 
+ * @param timeoutMs - Maximum time to wait for flush (default: 5000ms)
+ */
+export async function flushTraces(timeoutMs: number = 5000): Promise<void> {
+  if (!sdkInstance) return;
+  
+  try {
+    await Promise.race([
+      sdkInstance.shutdown(),
+      new Promise<void>((_, reject) => 
+        setTimeout(() => reject(new Error('Flush timeout')), timeoutMs)
+      ),
+    ]);
+    sdkInstance = null;
+  } catch (error) {
+    if ((error as Error)?.message === 'Flush timeout') {
+      console.warn('[otel-setup] Trace flush timed out');
+    } else {
+      console.error('[otel-setup] Error flushing traces:', error);
+    }
+  }
+}
+
+/**
+ * Shutdown the OpenTelemetry SDK with proper trace flushing
  */
 export async function shutdownObservability(): Promise<void> {
-  if (sdkInstance) {
-    await sdkInstance.shutdown();
-    sdkInstance = null;
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  try {
+    // flushTraces now does the full shutdown
+    await flushTraces();
+  } catch (error) {
+    console.error('[otel-setup] Error during shutdown:', error);
   }
 }
 

@@ -4,7 +4,7 @@ services:
     environment:
       NODE_PATH: "/home/node/node_modules"
       OTEL_EXPORTER_OTLP_ENDPOINT: "https://www.comet.com/opik/api/v1/private/otel"
-      OTEL_EXPORTER_OTLP_HEADERS: "Authorization=<YOUR_COMET_API_KEY>,Comet-Workspace=default"
+      OTEL_EXPORTER_OTLP_HEADERS: "Authorization=<YOUR_OPIK_API_KEY>,Comet-Workspace=default"
       N8N_OTEL_SERVICE_NAME: "n8n-e2e"
       EXTERNAL_HOOK_FILES: "/home/node/node_modules/n8n-observability/dist/hooks.cjs"
       N8N_OTEL_DEBUG: "1"

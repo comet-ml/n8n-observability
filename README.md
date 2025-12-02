@@ -28,8 +28,8 @@ The fastest way to get started is with Docker Compose:
 git clone https://github.com/comet-ml/n8n-observability.git
 cd n8n-observability/examples/docker-compose
 
-# Set your Comet API key (get one free at https://www.comet.com/signup)
-export COMET_API_KEY=your_api_key_here
+# Set your Opik API key (get one free at https://www.comet.com/signup)
+export OPIK_API_KEY=your_api_key_here
 
 # Build and run
 docker-compose up --build
@@ -68,7 +68,7 @@ services:
     environment:
       # Comet ML / Opik
       OTEL_EXPORTER_OTLP_ENDPOINT: "https://www.comet.com/opik/api/v1/private/otel"
-      OTEL_EXPORTER_OTLP_HEADERS: "Authorization=${COMET_API_KEY},Comet-Workspace=default"
+      OTEL_EXPORTER_OTLP_HEADERS: "Authorization=${OPIK_API_KEY},Comet-Workspace=default"
       N8N_OTEL_SERVICE_NAME: "my-n8n"
     volumes:
       - n8n_data:/home/node/.n8n

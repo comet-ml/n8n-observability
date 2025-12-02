@@ -19,7 +19,7 @@
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build",
-    "test": "echo 'no tests yet'",
+    "test": "node tests/e2e/run.mjs",
     "format": "prettier -w .",
     "e2e": "node tests/e2e/run.mjs",
     "example": "docker compose -f examples/e2e/docker-compose.yml up --abort-on-container-exit"

@@ -47,7 +47,11 @@ async function main() {
         if (!buf.includes('[otel-setup]')) {
           throw new Error('Expected otel-setup logs not found');
         }
-        console.log('E2E OK: Observability SDK and setup logs present');
+        // Check for actual OTLP export to confirm traces were sent
+        if (!buf.includes('OTLPExportDelegate items to be sent')) {
+          throw new Error('Expected OTLP export log not found - traces were not sent to backend');
+        }
+        console.log('E2E OK: Observability SDK initialized and traces exported to backend');
         resolve();
       } catch (e) {
         reject(e);

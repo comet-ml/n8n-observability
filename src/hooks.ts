@@ -1,5 +1,32 @@
-import { setupObservability } from "./otel-setup.js";
+import { setupObservability, flushTraces } from "./otel-setup.js";
 import { applyPatches } from "./patch-n8n.js";
+
+// Override process.exit to flush traces before exiting
+// This is necessary because n8n CLI calls process.exit() directly
+const originalExit = process.exit;
+let isExiting = false;
+
+process.exit = ((code?: number) => {
+  if (isExiting) {
+    return originalExit(code);
+  }
+  isExiting = true;
+  
+  if (process.env.N8N_OTEL_DEBUG) {
+    console.log('[n8n-observability] process.exit intercepted, flushing traces...');
+  }
+  
+  // Flush traces with a timeout, then exit
+  flushTraces(5000).finally(() => {
+    if (process.env.N8N_OTEL_DEBUG) {
+      console.log('[n8n-observability] Traces flushed, exiting');
+    }
+    originalExit(code);
+  });
+  
+  // Return never to satisfy TypeScript (originalExit will be called async)
+  return undefined as never;
+}) as typeof process.exit;
 
 /**
  * CommonJS backend hooks file for n8n (used via EXTERNAL_HOOK_FILES)

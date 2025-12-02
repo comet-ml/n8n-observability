@@ -10,9 +10,9 @@ This example demonstrates how to run n8n with OpenTelemetry observability enable
 
 ## Quick Start
 
-1. **Set your Comet API Key**:
+1. **Set your Opik API Key**:
    ```bash
-   export COMET_API_KEY=your_comet_api_key_here
+   export OPIK_API_KEY=your_opik_api_key_here
    ```
 
 2. **Build and run**:
@@ -56,7 +56,7 @@ N8N_OTEL_CAPTURE_INPUT: "false"  # Disable input capture for privacy
 
 ## Troubleshooting
 
-- **No traces appearing**: Verify your COMET_API_KEY is set correctly
+- **No traces appearing**: Verify your OPIK_API_KEY is set correctly
 - **Connection errors**: Check that the OTLP endpoint is accessible
 - **Enable debug mode**: Set `N8N_OTEL_DEBUG: "1"` to see detailed logs
 
