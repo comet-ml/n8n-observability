@@ -1,4 +1,5 @@
 {
+  "id": "e2eTestWorkflow01",
   "name": "Simple Test Workflow",
   "versionId": "e2e-test-v1",
   "nodes": [
