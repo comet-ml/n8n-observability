@@ -28,13 +28,17 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # npm trusted publishing (OIDC) requires Node >= 22.14.0 and npm >= 11.5.1.
+          node-version: "22.14.0"
           cache: pnpm
           cache-dependency-path: "pnpm-lock.yaml"
           registry-url: "https://registry.npmjs.org"
 
       - name: Update npm
-        run: npm install -g npm@latest
+        # Pinned rather than `npm@latest`: Node 22.14.0 ships npm 10.x, which is
+        # below the OIDC floor, and an unpinned upgrade makes the publish path
+        # depend on whatever npm released today.
+        run: npm install -g npm@11.6.2
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -49,4 +53,11 @@ jobs:
         run: pnpm run build
 
       - name: Publish to npm
-        run: npm publish --access public
+        # `setup-node` with `registry-url` writes
+        # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` into ~/.npmrc. With
+        # trusted publishing there is no token, so that expands to an empty
+        # credential which npm tries instead of falling back to the OIDC exchange —
+        # remove the stub so the exchange happens.
+        run: |
+          npm config delete //registry.npmjs.org/:_authToken || true
+          npm publish --access public
