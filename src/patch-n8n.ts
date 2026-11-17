@@ -11,6 +11,7 @@ import {
   type Attributes,
 } from "@opentelemetry/api";
 import { flatten } from "flat";
+import { getTracer } from "./otel-setup.js";
 import type { IExecuteData, INodeExecutionData } from "n8n-workflow";
 
 type AnyFunction = (...args: unknown[]) => unknown;
@@ -378,7 +379,7 @@ function patchWorkflowExecute(core: unknown): boolean {
     return false;
   }
 
-  const tracer = trace.getTracer("n8n-observability", "1.0.0");
+  const tracer = getTracer("n8n-observability", "1.0.0");
   const proto = (WorkflowExecute as { prototype: WorkflowExecutePatchable })
     .prototype;
 
