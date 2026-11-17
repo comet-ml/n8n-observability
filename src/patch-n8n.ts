@@ -11,6 +11,7 @@ import {
   type Attributes,
 } from "@opentelemetry/api";
 import { flatten } from "flat";
+import { redact } from "./redact.js";
 import type { IExecuteData, INodeExecutionData } from "n8n-workflow";
 
 type AnyFunction = (...args: unknown[]) => unknown;
@@ -469,7 +470,7 @@ function patchWorkflowExecute(core: unknown): boolean {
         "n8n.workflow.id": workflowMeta.id ?? "unknown",
       };
 
-      const flattenedNode = flatten(node as Record<string, unknown>, {
+      const flattenedNode = flatten(redact(node) as Record<string, unknown>, {
         delimiter: ".",
       }) as Record<string, unknown>;
       for (const [key, value] of Object.entries(flattenedNode)) {
@@ -514,7 +515,7 @@ function patchWorkflowExecute(core: unknown): boolean {
                   const finalJson = (
                     outRaw as Array<INodeExecutionData | undefined>
                   ).map((item) => item?.json);
-                  const s = safeJSON(finalJson);
+                  const s = safeJSON(redact(finalJson));
                   if (s) span.setAttribute("n8n.node.output", s);
                 }
 
@@ -580,7 +581,7 @@ function patchWorkflowExecute(core: unknown): boolean {
                     main0 as Array<INodeExecutionData | undefined>
                   ).map((d) => d?.json);
 
-                  const si = safeJSON(inputData);
+                  const si = safeJSON(redact(inputData));
                   if (si) span.setAttribute("n8n.node.input", si);
                 }
               }
