@@ -121,6 +121,7 @@ await setupN8nObservability({
 | `N8N_OTEL_NODE_EXCLUDE` | Exclude listed nodes (comma-separated) | — |
 | `N8N_OTEL_CAPTURE_INPUT` | Capture node input data | `true` |
 | `N8N_OTEL_CAPTURE_OUTPUT` | Capture node output data | `true` |
+| `N8N_OTEL_REDACT_KEYS` | Keys whose values are replaced with `[REDACTED]` in captured input, output and node parameters (comma-separated, case-insensitive, any depth; a `{ name, value }` pair is masked by its `name`). Set it to an empty string to turn masking off | `authorization,proxy-authorization,cookie,set-cookie,x-api-key,api-key,apikey,x-auth-token` |
 | `N8N_OTEL_AUTO_INSTRUMENT` | Enable HTTP/Express instrumentation | `false` |
 | `N8N_OTEL_METRICS` | Enable metrics collection | `false` |
 | `N8N_OTEL_DEBUG` | Enable debug logging | `false` |
@@ -138,6 +139,11 @@ export N8N_OTEL_NODE_EXCLUDE="Wait,Set"
 # Disable I/O capture for privacy
 export N8N_OTEL_CAPTURE_INPUT=false
 export N8N_OTEL_CAPTURE_OUTPUT=false
+```
+
+**Mask more keys** (this replaces the default list, so keep the defaults you still want):
+```bash
+export N8N_OTEL_REDACT_KEYS="authorization,cookie,set-cookie,x-api-key,x-webhook-secret,x-forwarded-for"
 ```
 
 ---
