@@ -2,12 +2,11 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 import { Resource } from '@opentelemetry/resources';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { BasicTracerProvider, BatchSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
-import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { PeriodicExportingMetricReader, ConsoleMetricExporter } from '@opentelemetry/sdk-metrics';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { context, diag, DiagConsoleLogger, DiagLogLevel, ProxyTracerProvider, trace, type Tracer } from '@opentelemetry/api';
+import { diag, DiagConsoleLogger, DiagLogLevel, ProxyTracerProvider, trace, type Tracer } from '@opentelemetry/api';
 import { LangChainInstrumentation } from '@arizeai/openinference-instrumentation-langchain';
 
 export interface ObservabilityOptions {
@@ -208,9 +207,7 @@ export function setupObservability(options: ObservabilityOptions = {}): void {
   if (hostOtelAlreadyRegistered()) {
     privateProvider = new BasicTracerProvider({ resource });
     privateProvider.addSpanProcessor(new BatchSpanProcessor(traceExporter));
-    // Span nesting needs a context manager; the host normally registered one, and this
-    // call is a no-op (returns false) when it did.
-    context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
+    // Span nesting uses the host's global context manager (n8n registers one with its SDK).
 
     try {
       const lcInstrumentation = new LangChainInstrumentation();
