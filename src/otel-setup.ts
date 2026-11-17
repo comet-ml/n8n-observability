@@ -1,12 +1,13 @@
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { Resource } from '@opentelemetry/resources';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
-import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
+import { BasicTracerProvider, BatchSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { PeriodicExportingMetricReader, ConsoleMetricExporter } from '@opentelemetry/sdk-metrics';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
+import { context, diag, DiagConsoleLogger, DiagLogLevel, ProxyTracerProvider, trace, type Tracer } from '@opentelemetry/api';
 import { LangChainInstrumentation } from '@arizeai/openinference-instrumentation-langchain';
 
 export interface ObservabilityOptions {
@@ -29,7 +30,36 @@ export interface ObservabilityOptions {
 }
 
 let sdkInstance: NodeSDK | null = null;
+let privateProvider: BasicTracerProvider | null = null;
 let isShuttingDown = false;
+
+/**
+ * True when the host process registered its own global OpenTelemetry setup before us.
+ *
+ * Since n8n 2.47.0, n8n sets up OpenTelemetry itself at startup (n8n-io/n8n#41584). Its
+ * global tracer provider only exports spans from n8n's own tracers, and a second
+ * NodeSDK.start() cannot replace it, so spans created through the global API are dropped.
+ */
+function hostOtelAlreadyRegistered(): boolean {
+  // Probe the global slot through the public API: registration fails when the host already
+  // holds it. n8n's provider can still delegate to a no-op at this point (it is swapped in
+  // later), so inspecting the current delegate is not enough. When the slot is free, the
+  // probe is removed again and the regular NodeSDK path registers as before.
+  const free = trace.setGlobalTracerProvider(new ProxyTracerProvider());
+  if (free) trace.disable();
+  return !free;
+}
+
+/**
+ * The tracer every n8n-observability span is created with.
+ *
+ * When the host owns the global setup, this is a private provider that exports to the
+ * OTLP endpoint configured for this package; otherwise it is the global tracer, as before.
+ */
+export function getTracer(name: string, version?: string): Tracer {
+  if (privateProvider) return privateProvider.getTracer(name, version);
+  return trace.getTracer(name, version);
+}
 
 /**
  * Setup OpenTelemetry observability with the Node.js SDK
@@ -42,7 +72,7 @@ let isShuttingDown = false;
  */
 export function setupObservability(options: ObservabilityOptions = {}): void {
   // Prevent double initialization
-  if (sdkInstance) {
+  if (sdkInstance || privateProvider) {
     console.warn('[otel-setup] OpenTelemetry SDK already initialized');
     return;
   }
@@ -173,6 +203,39 @@ export function setupObservability(options: ObservabilityOptions = {}): void {
       })
     : new ConsoleSpanExporter();
 
+  // The host (n8n >= 2.47) already owns the global OpenTelemetry setup: keep our spans on a
+  // private provider instead of starting a second SDK, which the global API would refuse.
+  if (hostOtelAlreadyRegistered()) {
+    privateProvider = new BasicTracerProvider({ resource });
+    privateProvider.addSpanProcessor(new BatchSpanProcessor(traceExporter));
+    // Span nesting needs a context manager; the host normally registered one, and this
+    // call is a no-op (returns false) when it did.
+    context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
+
+    try {
+      const lcInstrumentation = new LangChainInstrumentation();
+      lcInstrumentation.setTracerProvider(privateProvider);
+      const CallbackManagerModule = require('@langchain/core/callbacks/manager');
+      lcInstrumentation.manuallyInstrument(CallbackManagerModule);
+    } catch (err) {
+      if (options.debug?.consoleLogging) {
+        console.log('[otel-setup] LangChain instrumentation skipped:', (err as Error)?.message || err);
+      }
+    }
+
+    const handleSignal = () => {
+      flushTraces().finally(() => process.exit(0));
+    };
+    process.on('SIGTERM', handleSignal);
+    process.on('SIGINT', handleSignal);
+
+    console.log(
+      `[otel-setup] OpenTelemetry initialized: ${serviceName} (host OpenTelemetry detected, ` +
+        `${useOTLP ? 'OTLP export' : 'console output'} on a private provider)`
+    );
+    return;
+  }
+
   // Prepare SDK configuration
   const sdkConfig: any = {
     resource,
@@ -288,16 +351,17 @@ export function setupObservability(options: ObservabilityOptions = {}): void {
  * @param timeoutMs - Maximum time to wait for flush (default: 5000ms)
  */
 export async function flushTraces(timeoutMs: number = 5000): Promise<void> {
-  if (!sdkInstance) return;
+  if (!sdkInstance && !privateProvider) return;
   
   try {
     await Promise.race([
-      sdkInstance.shutdown(),
+      sdkInstance ? sdkInstance.shutdown() : privateProvider!.shutdown(),
       new Promise<void>((_, reject) => 
         setTimeout(() => reject(new Error('Flush timeout')), timeoutMs)
       ),
     ]);
     sdkInstance = null;
+    privateProvider = null;
   } catch (error) {
     if ((error as Error)?.message === 'Flush timeout') {
       console.warn('[otel-setup] Trace flush timed out');
